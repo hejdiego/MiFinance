@@ -565,6 +565,8 @@ function resetApp(){if(!confirm('¿Cerrar sesión?'))return;localStorage.removeI
 
 window.addEventListener('DOMContentLoaded',()=>{
   $('m-date').valueAsDate=new Date();
+  // Always hide loader on page load — it only shows during explicit actions
+  hideLoader();
   if(S.token&&S.db){
     $('t-token').value=S.token;$('t-db').value=S.db;
     goTo('dashboard');$('fab-wrap').style.display='flex';loadExpenses();
