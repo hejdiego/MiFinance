@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="My Money" />
+<title>My Money</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0c0c0f;
+    --surface: #141418;
+    --surface2: #1c1c22;
+    --border: #2a2a35;
+    --accent: #c8f135;
+    --accent2: #7c5cfc;
+    --text: #f0f0f5;
+    --muted: #6b6b80;
+    --danger: #ff5c5c;
+    --income: #34d399;
+    --expense: #ff5c5c;
+    --transfer: #7c5cfc;
+    --saving: #38b2ff;
+    --radius: 16px;
+    --safe-top: env(safe-area-inset-top);
+    --safe-bot: env(safe-area-inset-bottom);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Mono', monospace; background: var(--bg); color: var(--text); min-height: 100dvh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+
+  .screen { display: none; flex-direction: column; min-height: 100dvh; position: relative; z-index: 1; }
+  .screen.active { display: flex; }
+
+  /* ── Setup ── */
+  #setup {
+    align-items: center; justify-content: center; padding: 2rem;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, #1a1a2e 0%, var(--bg) 70%);
+  }
+  .logo-mark {
+    width: 64px; height: 64px; background: var(--accent); border-radius: 18px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.8rem; color: #000;
+    margin-bottom: 2rem; box-shadow: 0 0 40px rgba(200,241,53,0.3);
+  }
+  .setup-title { font-family: 'Syne', sans-serif; font-size: clamp(1.8rem,5vw,2.5rem); font-weight: 800; text-align: center; line-height: 1.1; margin-bottom: 0.5rem; }
+  .setup-sub { color: var(--muted); text-align: center; font-size: 0.85rem; margin-bottom: 2.5rem; line-height: 1.6; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; width: 100%; max-width: 420px; }
+  .field { margin-bottom: 1rem; }
+  .field label { display: block; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.4rem; }
+  .field input, .field select {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); font-family: 'DM Mono', monospace;
+    font-size: 0.88rem; padding: 0.75rem 1rem; outline: none; transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field select option { background: var(--surface2); }
+  .btn { width: 100%; padding: 0.9rem; border-radius: 10px; border: none; cursor: pointer; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.95rem; transition: transform 0.15s, opacity 0.15s; }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:disabled { opacity: 0.4; cursor: default; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .error-msg { color: var(--danger); font-size: 0.78rem; margin-top: 0.75rem; display: none; }
+
+  /* ── Dashboard ── */
+  #dashboard { flex-direction: column; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: calc(var(--safe-top) + 1rem) 1.25rem 0.75rem;
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(12,12,15,0.88); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-brand { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; }
+  .topbar-brand span { background: var(--accent); color: #000; border-radius: 6px; padding: 1px 6px; font-size: 0.75rem; }
+  .topbar-actions { display: flex; gap: 0.5rem; }
+  .icon-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); cursor: pointer; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; font-size: 1rem; transition: background 0.15s; }
+  .icon-btn:active { background: var(--border); }
+
+  .dash-content { flex: 1; overflow-y: auto; padding: 1.25rem; padding-bottom: 7rem; }
+
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+  .stat-card.full { grid-column: 1/-1; }
+  .stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.25rem; }
+  .stat-value { font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 800; }
+  .stat-value.green { color: var(--income); }
+  .stat-value.red { color: var(--expense); }
+  .stat-value.accent { color: var(--accent); }
+  .stat-sub { font-size: 0.7rem; color: var(--muted); margin-top: 0.15rem; }
+
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem; }
+  .chart-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.88rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; }
+  .chart-wrap { height: 180px; position: relative; }
+
+  .section-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; }
+  .list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+  .expense-list { display: flex; flex-direction: column; gap: 0.45rem; }
+  .expense-item { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.8rem 1rem; display: flex; align-items: center; gap: 0.75rem; animation: slideIn 0.25s ease; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .type-badge { font-size: 0.62rem; font-weight: 600; border-radius: 4px; padding: 2px 6px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.05em; }
+  .type-expense  { background: rgba(255,92,92,0.15);  color: var(--expense); }
+  .type-income   { background: rgba(52,211,153,0.15); color: var(--income); }
+  .type-transfer { background: rgba(124,92,252,0.15); color: var(--transfer); }
+  .type-saving   { background: rgba(56,178,255,0.15); color: var(--saving); }
+  .type-card     { background: rgba(255,179,71,0.15); color: #ffb347; }
+  .expense-info { flex: 1; min-width: 0; }
+  .expense-name { font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .expense-meta { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+  .expense-amount { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.9rem; flex-shrink: 0; }
+  .expense-amount.neg { color: var(--expense); }
+  .expense-amount.pos { color: var(--income); }
+
+  .empty-state { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-size: 0.82rem; line-height: 2; }
+  .empty-state .big { font-size: 2rem; display: block; margin-bottom: 0.5rem; }
+
+  .fab { position: fixed; bottom: calc(var(--safe-bot) + 1.5rem); left: 50%; transform: translateX(-50%); background: var(--accent); color: #000; border: none; border-radius: 50px; padding: 0 2rem; height: 52px; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; box-shadow: 0 8px 32px rgba(200,241,53,0.3); transition: transform 0.15s; z-index: 20; white-space: nowrap; }
+  .fab:active { transform: translateX(-50%) scale(0.96); }
+
+  /* ── Modal ── */
+  .modal-overlay { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); align-items: flex-end; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 24px 24px 0 0; padding: 0 1.5rem calc(var(--safe-bot) + 1.5rem); width: 100%; max-width: 500px; animation: slideUp 0.3s cubic-bezier(0.32,0.72,0,1); max-height: 92dvh; overflow-y: auto; }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0.85rem auto 1.25rem; }
+  .modal-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.15rem; margin-bottom: 1.25rem; }
+
+  /* Amount input */
+  .amount-wrap { background: var(--surface2); border: 2px solid var(--accent); border-radius: 14px; padding: 0.85rem 1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+  .currency-sign { font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+  .amount-wrap input { flex: 1; background: transparent; border: none; color: var(--text); font-family: 'Syne', sans-serif; font-size: 1.8rem; font-weight: 800; outline: none; width: 100%; }
+  .amount-wrap input::placeholder { color: var(--muted); }
+
+  /* Chip groups */
+  .chip-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.4rem; display: block; }
+  .chip-group { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1rem; }
+  .chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 50px; padding: 0.3rem 0.75rem; font-size: 0.76rem; cursor: pointer; font-family: 'DM Mono', monospace; color: var(--text); transition: all 0.15s; white-space: nowrap; }
+  .chip:active { transform: scale(0.95); }
+  .chip.active-expense  { background: rgba(255,92,92,0.2);  border-color: var(--expense);  color: var(--expense); }
+  .chip.active-income   { background: rgba(52,211,153,0.2); border-color: var(--income);   color: var(--income); }
+  .chip.active-transfer { background: rgba(124,92,252,0.2); border-color: var(--transfer); color: var(--transfer); }
+  .chip.active-saving   { background: rgba(56,178,255,0.2); border-color: var(--saving);   color: var(--saving); }
+  .chip.active-card     { background: rgba(255,179,71,0.2); border-color: #ffb347;         color: #ffb347; }
+  .chip.active          { background: rgba(200,241,53,0.2); border-color: var(--accent);   color: var(--accent); }
+
+  /* Transfer fields */
+  .transfer-only { display: none; }
+  .transfer-only.show { display: block; }
+
+  .modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+
+  .spinner { width: 16px; height: 16px; border: 2px solid rgba(0,0,0,0.2); border-top-color: #000; border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast { position: fixed; bottom: calc(var(--safe-bot) + 5rem); left: 50%; transform: translateX(-50%) translateY(16px); background: var(--surface); border: 1px solid var(--border); border-radius: 50px; padding: 0.55rem 1.2rem; font-size: 0.8rem; white-space: nowrap; opacity: 0; transition: all 0.25s; z-index: 200; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--income); color: var(--income); }
+  .toast.fail { border-color: var(--danger); color: var(--danger); }
+
+  .loader-overlay { position: fixed; inset: 0; z-index: 500; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 1rem; }
+  .loader-overlay.hidden { display: none; }
+  .loader-ring { width: 44px; height: 44px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  .loader-text { font-size: 0.8rem; color: var(--muted); }
+
+  .trm-note { font-size: 0.7rem; color: var(--muted); margin-top: -0.5rem; margin-bottom: 0.75rem; }
+
+  .skeleton { background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: 8px; height: 60px; margin-bottom: 0.45rem; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+</style>
+</head>
+<body>
+
+<div class="loader-overlay hidden" id="loader">
+  <div class="loader-ring"></div>
+  <span class="loader-text" id="loader-text">Cargando…</span>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- ════════ SETUP ════════ -->
+<div class="screen active" id="setup">
+  <div class="logo-mark">$</div>
+  <h1 class="setup-title">My Money<br/>→ Notion</h1>
+  <p class="setup-sub">Conecta tu base de datos y registra<br/>movimientos en segundos.</p>
+  <div class="card">
+    <div class="field">
+      <label>Notion Integration Token</label>
+      <input type="password" id="inp-token" placeholder="secret_xxxxxxxxxxxx" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label>Database ID — My Money</label>
+      <input type="text" id="inp-db" placeholder="32 caracteres de la URL" autocomplete="off" />
+    </div>
+    <button class="btn btn-primary" id="btn-connect">Conectar →</button>
+    <p class="error-msg" id="setup-error"></p>
+  </div>
+</div>
+
+<!-- ════════ DASHBOARD ════════ -->
+<div class="screen" id="dashboard">
+  <div class="topbar">
+    <div class="topbar-brand">My Money <span>notion</span></div>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="loadExpenses()" title="Actualizar">↻</button>
+      <button class="icon-btn" onclick="resetApp()" title="Salir">⏏</button>
+    </div>
+  </div>
+
+  <div class="dash-content">
+    <div class="summary-grid">
+      <div class="stat-card">
+        <div class="stat-label">Ingresos mes</div>
+        <div class="stat-value green" id="stat-income">$0</div>
+        <div class="stat-sub" id="stat-income-sub">0 registros</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Gastos mes</div>
+        <div class="stat-value red" id="stat-expense">$0</div>
+        <div class="stat-sub" id="stat-expense-sub">0 registros</div>
+      </div>
+      <div class="stat-card full">
+        <div class="stat-label">Balance mes (COP)</div>
+        <div class="stat-value accent" id="stat-balance">$0</div>
+        <div class="stat-sub" id="stat-month-label">—</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">
+        <span>Gastos por categoría</span>
+        <span style="font-size:0.7rem;color:var(--muted);" id="chart-month"></span>
+      </div>
+      <div class="chart-wrap"><canvas id="cat-chart"></canvas></div>
+    </div>
+
+    <div class="list-header">
+      <span class="section-label">Movimientos recientes</span>
+      <span style="font-size:0.7rem;color:var(--muted);" id="expense-count"></span>
+    </div>
+    <div class="expense-list" id="expense-list">
+      <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    </div>
+  </div>
+
+  <button class="fab" onclick="openModal()">+ Nuevo movimiento</button>
+</div>
+
+<!-- ════════ ADD MODAL ════════ -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nuevo movimiento</div>
+
+    <!-- Type -->
+    <span class="chip-label">Tipo *</span>
+    <div class="chip-group" id="type-chips"></div>
+
+    <!-- Amount + Currency -->
+    <div class="amount-wrap">
+      <span class="currency-sign" id="currency-sign">$</span>
+      <input type="number" id="inp-amount" placeholder="0" inputmode="decimal" />
+    </div>
+
+    <!-- Currency & TRM row -->
+    <div class="modal-row" style="margin-bottom:0.75rem;">
+      <div>
+        <span class="chip-label">Moneda *</span>
+        <div class="chip-group" id="currency-chips"></div>
+      </div>
+      <div>
+        <span class="chip-label">TRM</span>
+        <input type="number" id="inp-trm" value="1" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:0.85rem;padding:0.45rem 0.65rem;outline:none;width:100%;" />
+      </div>
+    </div>
+    <p class="trm-note" id="trm-note">COP → TRM = 1 automáticamente</p>
+
+    <!-- Note -->
+    <div class="field" style="margin-bottom:0.75rem;">
+      <label>Descripción *</label>
+      <input type="text" id="inp-note" placeholder="ej. Almuerzo, Bus, Salario…" />
+    </div>
+
+    <!-- Date -->
+    <div class="field" style="margin-bottom:0.75rem;">
+      <label>Fecha *</label>
+      <input type="date" id="inp-date" />
+    </div>
+
+    <!-- Main Category -->
+    <span class="chip-label">Categoría principal</span>
+    <div class="chip-group" id="main-cat-chips"></div>
+
+    <!-- Wallet -->
+    <span class="chip-label">Billetera (Wallet)</span>
+    <div class="chip-group" id="wallet-chips"></div>
+
+    <!-- Category relation -->
+    <span class="chip-label">Subcategoría (Category)</span>
+    <div class="chip-group" id="cat-relation-chips"></div>
+
+    <!-- Transfer fields -->
+    <div class="transfer-only" id="transfer-fields">
+      <span class="chip-label">Billetera origen (Wallet From)</span>
+      <div class="chip-group" id="wallet-from-chips"></div>
+      <span class="chip-label">Billetera destino (Wallet To)</span>
+      <div class="chip-group" id="wallet-to-chips"></div>
+    </div>
+
+    <div style="display:flex;gap:0.75rem;margin-top:1rem;">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" style="flex:2;display:flex;align-items:center;justify-content:center;gap:0.5rem;" id="btn-add">
+        Guardar <div class="spinner" id="add-spinner"></div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────
+const TYPE_COLORS = {
+  'Expense': 'expense', 'Card Expense': 'card', 'Card Payment': 'card',
+  'Income': 'income', 'Transfer': 'transfer', 'Saving': 'saving',
+};
+
+let state = {
+  token: '', databaseId: '',
+  selects: {}, // { Type: [{name,color}], Currency: [...], 'Main Category': [...] }
+  walletOptions: [],
+  categoryOptions: [],
+  expenses: [],
+};
+
+let form = {
+  type: '', currency: 'COP', mainCategory: '',
+  walletId: '', categoryId: '', walletFromId: '', walletToId: '',
+};
+
+function save() { try { localStorage.setItem('mm_state', JSON.stringify({ token: state.token, databaseId: state.databaseId, selects: state.selects, walletOptions: state.walletOptions, categoryOptions: state.categoryOptions })); } catch(e){} }
+function load() { try { const s = localStorage.getItem('mm_state'); if (s) { const p = JSON.parse(s); Object.assign(state, p); } } catch(e){} }
+load();
+
+function goTo(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+function showLoader(t) { document.getElementById('loader-text').textContent = t; document.getElementById('loader').classList.remove('hidden'); }
+function hideLoader() { document.getElementById('loader').classList.add('hidden'); }
+function toast(msg, type = 'success') { const el = document.getElementById('toast'); el.textContent = msg; el.className = `toast ${type} show`; setTimeout(() => el.classList.remove('show'), 2800); }
+
+// ─────────────────────────────────────────────
+// Setup
+// ─────────────────────────────────────────────
+document.getElementById('btn-connect').addEventListener('click', async () => {
+  const token = document.getElementById('inp-token').value.trim();
+  const db = document.getElementById('inp-db').value.trim().replace(/-/g,'');
+  const errEl = document.getElementById('setup-error');
+  errEl.style.display = 'none';
+  if (!token || !db) { errEl.textContent = 'Completa ambos campos.'; errEl.style.display = 'block'; return; }
+
+  showLoader('Conectando con Notion…');
+  try {
+    const res = await fetch('/api/validate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token, databaseId: db }) });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+
+    state.token = token; state.databaseId = db; state.selects = data.selects;
+
+    // Load relation options in parallel
+    showLoader('Cargando billeteras y categorías…');
+    const walletDbId = Object.values(data.relations).find((_, i) => Object.keys(data.relations)[i] === 'Wallet');
+    const catDbId    = Object.values(data.relations).find((_, i) => Object.keys(data.relations)[i] === 'Category');
+
+    const loadRelation = async (dbId) => {
+      if (!dbId) return [];
+      const r = await fetch('/api/relation-options', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token, databaseId: dbId }) });
+      const d = await r.json();
+      return d.ok ? d.options : [];
+    };
+
+    // Get relation DB IDs from data.relations object
+    const relEntries = Object.entries(data.relations);
+    const walletEntry = relEntries.find(([k]) => k === 'Wallet');
+    const catEntry    = relEntries.find(([k]) => k === 'Category');
+
+    const [wallets, cats] = await Promise.all([
+      walletEntry ? loadRelation(walletEntry[1]) : Promise.resolve([]),
+      catEntry    ? loadRelation(catEntry[1])    : Promise.resolve([]),
+    ]);
+
+    state.walletOptions   = wallets;
+    state.categoryOptions = cats;
+    save();
+
+    hideLoader();
+    goTo('dashboard');
+    loadExpenses();
+  } catch(e) {
+    hideLoader();
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  }
+});
+
+// ─────────────────────────────────────────────
+// Load & render expenses
+// ─────────────────────────────────────────────
+let catChart = null;
+const PALETTE = ['#ff5c5c','#c8f135','#7c5cfc','#38b2ff','#ffb347','#34d399','#ff85c8','#a78bfa','#5ce4c8'];
+
+async function loadExpenses() {
+  try {
+    const res = await fetch('/api/expenses', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: state.token, databaseId: state.databaseId }) });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    state.expenses = data.expenses;
+    renderDashboard();
+  } catch(e) { toast('Error cargando datos', 'fail'); }
+}
+
+function fmtCOP(n) {
+  const abs = Math.abs(Math.round(n));
+  return (n < 0 ? '-' : '') + '$' + abs.toLocaleString('es-CO');
+}
+
+function renderDashboard() {
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const monthly = state.expenses.filter(e => e.date?.startsWith(thisMonth));
+
+  let totalIncome = 0, totalExpense = 0;
+  monthly.forEach(e => {
+    if (e.incomeAmount != null)  totalIncome  += Math.abs(e.incomeAmount);
+    if (e.expenseAmount != null) totalExpense += Math.abs(e.expenseAmount);
+  });
+  const balance = totalIncome - totalExpense;
+  const incomeCount  = monthly.filter(e => e.type === 'Income').length;
+  const expenseCount = monthly.filter(e => ['Expense','Card Expense','Card Payment'].includes(e.type)).length;
+
+  const monthLabel = now.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+  document.getElementById('stat-income').textContent  = fmtCOP(totalIncome);
+  document.getElementById('stat-expense').textContent = fmtCOP(totalExpense);
+  document.getElementById('stat-balance').textContent = fmtCOP(balance);
+  document.getElementById('stat-income-sub').textContent  = `${incomeCount} ingreso${incomeCount!==1?'s':''}`;
+  document.getElementById('stat-expense-sub').textContent = `${expenseCount} gasto${expenseCount!==1?'s':''}`;
+  document.getElementById('stat-month-label').textContent = monthLabel;
+  document.getElementById('chart-month').textContent = monthLabel;
+  document.getElementById('expense-count').textContent = `${state.expenses.length} total`;
+
+  // Chart — expenses by Main Category this month
+  const catTotals = {};
+  monthly.filter(e => ['Expense','Card Expense'].includes(e.type)).forEach(e => {
+    const cat = e.mainCategory || 'Sin categoría';
+    catTotals[cat] = (catTotals[cat]||0) + Math.abs(e.expenseAmount || e.amount * (e.trm||1));
+  });
+  const catLabels = Object.keys(catTotals);
+  const catValues = catLabels.map(l => catTotals[l]);
+
+  if (catChart) catChart.destroy();
+  if (catLabels.length) {
+    const ctx = document.getElementById('cat-chart').getContext('2d');
+    catChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels: catLabels, datasets: [{ data: catValues, backgroundColor: PALETTE, borderWidth: 0, hoverOffset: 6 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { color: '#6b6b80', font: { family: 'DM Mono', size: 10 }, boxWidth: 8, padding: 10 } },
+          tooltip: { callbacks: { label: ctx => ` ${fmtCOP(ctx.parsed)}` } },
+        },
+        cutout: '65%',
+      },
+    });
+  }
+
+  // List
+  const list = document.getElementById('expense-list');
+  if (!state.expenses.length) {
+    list.innerHTML = '<div class="empty-state"><span class="big">📭</span>Sin movimientos todavía.<br/>Agrega el primero con el botón +</div>';
+    return;
+  }
+
+  list.innerHTML = state.expenses.slice(0,40).map(e => {
+    const typeClass = 'type-' + (TYPE_COLORS[e.type] || 'expense');
+    const isExpense = ['Expense','Card Expense','Card Payment'].includes(e.type);
+    const isIncome  = e.type === 'Income';
+    const amtClass  = isExpense ? 'neg' : isIncome ? 'pos' : '';
+    const displayAmt = e.expenseAmount != null && isExpense
+      ? fmtCOP(-Math.abs(e.expenseAmount))
+      : e.incomeAmount != null && isIncome
+        ? fmtCOP(e.incomeAmount)
+        : fmtCOP(e.amount);
+    const dateStr = e.date ? new Date(e.date+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short'}) : '';
+    return `
+      <div class="expense-item">
+        <span class="type-badge ${typeClass}">${e.type||'—'}</span>
+        <div class="expense-info">
+          <div class="expense-name">${e.note||'Sin descripción'}</div>
+          <div class="expense-meta">${e.mainCategory||''}${dateStr?' · '+dateStr:''} ${e.currency&&e.currency!=='COP'?' · '+e.currency:''}</div>
+        </div>
+        <div class="expense-amount ${amtClass}">${displayAmt}</div>
+      </div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────
+// Modal
+// ─────────────────────────────────────────────
+function openModal() {
+  form = { type:'', currency:'COP', mainCategory:'', walletId:'', categoryId:'', walletFromId:'', walletToId:'' };
+  document.getElementById('inp-amount').value = '';
+  document.getElementById('inp-note').value   = '';
+  document.getElementById('inp-trm').value    = '1';
+  document.getElementById('inp-date').valueAsDate = new Date();
+  buildModalChips();
+  document.getElementById('modal').classList.add('open');
+  setTimeout(() => document.getElementById('inp-amount').focus(), 350);
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+function buildModalChips() {
+  // Types
+  const types = (state.selects['Type'] || []).length
+    ? state.selects['Type']
+    : [{name:'Expense'},{name:'Income'},{name:'Transfer'},{name:'Saving'},{name:'Card Expense'},{name:'Card Payment'}];
+  buildChipGroup('type-chips', types.map(t=>t.name), 'type', false, true);
+
+  // Currencies
+  const currencies = (state.selects['Currency']||[]).length
+    ? state.selects['Currency'].map(c=>c.name)
+    : ['COP','USD','EUR'];
+  buildChipGroup('currency-chips', currencies, 'currency', false, false, 'COP');
+
+  // Main categories
+  const cats = (state.selects['Main Category']||[]).map(c=>c.name);
+  buildChipGroup('main-cat-chips', cats, 'mainCategory', false);
+
+  // Relation chips
+  buildChipGroup('wallet-chips', state.walletOptions.map(w=>({id:w.id,name:w.name})), 'walletId', false, false, null, true);
+  buildChipGroup('cat-relation-chips', state.categoryOptions.map(c=>({id:c.id,name:c.name})), 'categoryId', false, false, null, true);
+  buildChipGroup('wallet-from-chips', state.walletOptions.map(w=>({id:w.id,name:w.name})), 'walletFromId', false, false, null, true);
+  buildChipGroup('wallet-to-chips', state.walletOptions.map(w=>({id:w.id,name:w.name})), 'walletToId', false, false, null, true);
+}
+
+function buildChipGroup(containerId, items, formKey, multi, useTypeColor=false, defaultVal=null, isRelation=false) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  c.innerHTML = '';
+  if (!items || !items.length) { c.innerHTML = '<span style="font-size:0.72rem;color:var(--muted)">—</span>'; return; }
+
+  items.forEach(item => {
+    const name = isRelation ? item.name : (typeof item === 'string' ? item : item.name);
+    const id   = isRelation ? item.id   : name;
+
+    const chip = document.createElement('button');
+    chip.className = 'chip';
+    chip.textContent = name;
+
+    if (defaultVal && name === defaultVal) {
+      chip.classList.add('active'); form[formKey] = id;
+    }
+
+    chip.onclick = () => {
+      if (!multi) {
+        c.querySelectorAll('.chip').forEach(ch => ch.className = 'chip');
+        form[formKey] = id;
+        if (useTypeColor) {
+          const colorKey = TYPE_COLORS[name] || 'expense';
+          chip.classList.add(`active-${colorKey}`);
+          updateTransferFields(name);
+          updateTRM();
+        } else {
+          chip.classList.add('active');
+        }
+        if (formKey === 'currency') updateTRM(name);
+      }
+    };
+    c.appendChild(chip);
+  });
+}
+
+function updateTransferFields(type) {
+  const isTransfer = ['Transfer','Saving','Card Payment'].includes(type);
+  document.getElementById('transfer-fields').classList.toggle('show', isTransfer);
+}
+
+function updateTRM(currency) {
+  const cur = currency || form.currency;
+  const trmInput = document.getElementById('inp-trm');
+  const trmNote  = document.getElementById('trm-note');
+  if (cur === 'COP') {
+    trmInput.value = '1';
+    trmInput.readOnly = true;
+    trmNote.textContent = 'COP → TRM = 1 automáticamente';
+  } else {
+    trmInput.readOnly = false;
+    trmNote.textContent = `Ingresa la TRM para ${cur} → COP`;
+  }
+}
+
+// Currency sign display
+document.getElementById('currency-chips')?.addEventListener('click', e => {
+  if (e.target.classList.contains('chip')) {
+    const signs = { 'COP':'$', 'USD':'US$', 'EUR':'€' };
+    document.getElementById('currency-sign').textContent = signs[e.target.textContent] || '$';
+  }
+});
+
+// ─────────────────────────────────────────────
+// Submit
+// ─────────────────────────────────────────────
+document.getElementById('btn-add').addEventListener('click', async () => {
+  const amount = parseFloat(document.getElementById('inp-amount').value);
+  const note   = document.getElementById('inp-note').value.trim();
+  const date   = document.getElementById('inp-date').value;
+  const trm    = parseFloat(document.getElementById('inp-trm').value) || 1;
+
+  if (!amount) { toast('Ingresa un monto', 'fail'); return; }
+  if (!note)   { toast('Ingresa una descripción', 'fail'); return; }
+  if (!form.type) { toast('Selecciona el tipo de movimiento', 'fail'); return; }
+
+  const btn = document.getElementById('btn-add');
+  const spinner = document.getElementById('add-spinner');
+  btn.disabled = true; spinner.style.display = 'block';
+
+  try {
+    const res = await fetch('/api/expense', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        token: state.token, databaseId: state.databaseId,
+        transaction: {
+          note, amount, trm, date,
+          type: form.type,
+          currency: form.currency || 'COP',
+          mainCategory: form.mainCategory || null,
+          walletId: form.walletId || null,
+          categoryId: form.categoryId || null,
+          walletFromId: form.walletFromId || null,
+          walletToId: form.walletToId || null,
+        },
+      }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    toast('✓ Guardado en Notion');
+    closeModal();
+    setTimeout(loadExpenses, 800);
+  } catch(e) {
+    toast(e.message, 'fail');
+  } finally {
+    btn.disabled = false; spinner.style.display = 'none';
+  }
+});
+
+// ─────────────────────────────────────────────
+// Utils
+// ─────────────────────────────────────────────
+function resetApp() {
+  if (!confirm('¿Cerrar sesión?')) return;
+  localStorage.removeItem('mm_state');
+  location.reload();
+}
+
+// Close modal on overlay click
+document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+// ─────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('inp-date').valueAsDate = new Date();
+  if (state.token && state.databaseId) {
+    document.getElementById('inp-token').value = state.token;
+    document.getElementById('inp-db').value    = state.databaseId;
+    goTo('dashboard');
+    loadExpenses();
+  }
+});
+</script>
+</body>
+</html>
