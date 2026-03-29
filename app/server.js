@@ -63,7 +63,9 @@ app.get('/auth/callback', async (req, res) => {
   const { code } = req.query;
   const clientId     = process.env.NOTION_CLIENT_ID;
   const clientSecret = process.env.NOTION_CLIENT_SECRET;
-  const redirectUri  = `${req.protocol}://${req.headers.host}/auth/callback`;
+
+  // Forzar siempre HTTPS y tu dominio Railway
+  const redirectUri  = "https://mifinance-production.up.railway.app/auth/callback";
 
   try {
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
@@ -74,8 +76,13 @@ app.get('/auth/callback', async (req, res) => {
         'Content-Type': 'application/json',
         'Notion-Version': '2022-06-28',
       },
-      body: JSON.stringify({ grant_type: 'authorization_code', code, redirect_uri: redirectUri }),
+      body: JSON.stringify({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri
+      }),
     });
+
     const data = await response.json();
     if (!response.ok) throw new Error(data.error_description || 'OAuth failed');
     req.session.token = data.access_token;
